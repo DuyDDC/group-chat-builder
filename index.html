@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Group Chat Builder</title>
+<script src="https://res.cdn.office.net/teams-js/2.40.0/js/MicrosoftTeams.min.js" crossorigin="anonymous"></script>
+<style>
+:root {
+  --paper: #F5F5F5; --surface: #FFFFFF; --ink: #242424; --muted: #616161; --line: #E0E0E0;
+  --accent: #5B5FC7; --accent-ink: #FFFFFF; --accent-soft: #E8EBFA;
+  --ok: #0E700E; --warn: #8A3707; --warn-soft: #FDF0E6; --bad: #B10E1C; --bad-soft: #FDE7E9;
+  --font: "Segoe UI", "Segoe UI Web (West European)", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --paper: #1F1F1F; --surface: #292929; --ink: #FFFFFF; --muted: #ADADAD; --line: #3D3D3D;
+  --accent: #7F85F5; --accent-ink: #1F1F1F; --accent-soft: #2F2F4A;
+  --ok: #54B054; --warn: #F1A14E; --warn-soft: #3A2A1B; --bad: #F1707B; --bad-soft: #3E1F22;
+  color-scheme: dark;
+}
+:root[data-theme="contrast"] {
+  --paper: #000000; --surface: #000000; --ink: #FFFFFF; --muted: #FFFFFF; --line: #FFFFFF;
+  --accent: #FFFF00; --accent-ink: #000000; --accent-soft: #000000;
+  --ok: #3FF23F; --warn: #FFFF00; --warn-soft: #000000; --bad: #FF5C5C; --bad-soft: #000000;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 24px 20px 40px; }
+header { margin-bottom: 20px; max-width: 64ch; }
+h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 4px; font-weight: 600; }
+header p { margin: 0; color: var(--muted); }
+.grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
+label { display: block; font-weight: 600; font-size: 0.875rem; margin-bottom: 6px; }
+.hint { color: var(--muted); font-size: 0.8125rem; margin: 4px 0 0; }
+textarea, input[type="text"] { width: 100%; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; }
+textarea { min-height: 240px; resize: vertical; line-height: 1.55; }
+textarea:focus, input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.field { margin-bottom: 14px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
+.domain { display: flex; }
+.domain span { display: flex; align-items: center; padding: 0 10px; border: 1px solid var(--line); border-right: 0; border-radius: 4px 0 0 4px; color: var(--muted); background: var(--surface); }
+.domain input { border-radius: 0 4px 4px 0; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; }
+.check input { margin-top: 4px; }
+.count { display: flex; align-items: baseline; gap: 10px; margin: 0 0 2px; }
+.count strong { font-size: 2.5rem; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+.count span { color: var(--muted); font-weight: 400; font-size: 1rem; }
+.status { font-size: 0.875rem; margin: 0 0 12px; color: var(--muted); }
+.status.ok { color: var(--ok); } .status.warn { color: var(--warn); } .status.bad { color: var(--bad); }
+.tofield { border: 1px solid var(--line); border-radius: 4px; padding: 8px; display: flex; flex-wrap: wrap; gap: 6px; max-height: 320px; overflow-y: auto; background: var(--paper); min-height: 60px; align-content: flex-start; }
+.tofield .empty { color: var(--muted); padding: 4px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; background: var(--accent-soft); border: 1px solid transparent; border-radius: 999px; padding: 2px 4px 2px 10px; font-size: 0.8125rem; }
+:root[data-theme="contrast"] .chip { border-color: var(--line); }
+.chip button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font: inherit; width: 20px; height: 20px; border-radius: 50%; line-height: 1; }
+.chip button:hover { background: var(--line); color: var(--ink); }
+.chip.dup { background: var(--warn-soft); color: var(--warn); text-decoration: line-through; padding-right: 10px; }
+.chip.bad { background: var(--bad-soft); color: var(--bad); padding-right: 10px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.btn { font: inherit; font-weight: 600; border-radius: 4px; padding: 8px 16px; cursor: pointer; border: 1px solid var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.ghost { background: transparent; color: var(--accent); }
+.toast { font-size: 0.8125rem; color: var(--ok); min-height: 1.3em; margin-top: 8px; }
+.toast.bad { color: var(--bad); }
+details { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+summary { cursor: pointer; font-weight: 600; }
+ol.steps { margin: 8px 0 0; padding-left: 20px; color: var(--muted); max-width: 70ch; }
+ol.steps li { margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Group Chat Builder</h1>
+    <p>Paste account IDs, check the list, then start the group chat with everyone already added.</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="in-title">
+      <div class="field">
+        <label for="ids" id="in-title">Account IDs</label>
+        <textarea id="ids" spellcheck="false" placeholder="ANDT14&#10;ANHND137&#10;ANHND51&#10;…"></textarea>
+        <p class="hint">One per line, or separated by commas, semicolons or spaces. Full emails work too.</p>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="domain">Email domain</label>
+          <div class="domain"><span>@</span><input type="text" id="domain" value="fpt.com" spellcheck="false"></div>
+        </div>
+        <div class="field">
+          <label for="topic">Group name</label>
+          <input type="text" id="topic" placeholder="e.g. EMU Audiences Learning">
+        </div>
+      </div>
+      <div class="field">
+        <label for="msg">First message (optional)</label>
+        <input type="text" id="msg" placeholder="Hi everyone, welcome to the group!">
+        <p class="hint">Teams creates the group when the first message is sent. This pre-fills it for you.</p>
+      </div>
+      <label class="check"><input type="checkbox" id="upper" checked> Convert IDs to uppercase</label>
+    </section>
+
+    <section class="panel" aria-labelledby="out-title" aria-live="polite">
+      <h2 id="out-title" class="count"><strong id="n">0</strong><span id="nlabel">people to add</span></h2>
+      <p class="status" id="status">Paste account IDs to start.</p>
+      <div class="tofield" id="chips"><span class="empty">Your recipients will appear here.</span></div>
+      <div class="actions">
+        <button class="btn primary" id="start" type="button" disabled>Start group chat</button>
+        <button class="btn ghost" id="copyList" type="button">Copy email list</button>
+        <button class="btn ghost" id="clear" type="button">Clear</button>
+      </div>
+      <div class="toast" id="toast"></div>
+      <details>
+        <summary>How it works</summary>
+        <ol class="steps">
+          <li>Each ID becomes an email (ANDT14 → ANDT14@fpt.com). Duplicates are struck through and invalid entries shown in red; both are skipped.</li>
+          <li>“Start group chat” opens a new Teams chat with everyone in the To field, plus your group name and first message.</li>
+          <li>Check the people count in Teams, then press Send. The group is created at that moment.</li>
+          <li>You don’t need to include yourself. Teams group chats hold up to 250 people.</li>
+        </ol>
+      </details>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var ids = $("ids"), domain = $("domain"), topic = $("topic"), msg = $("msg"), upper = $("upper");
+  var chips = $("chips"), n = $("n"), nlabel = $("nlabel"), status = $("status"), startBtn = $("start"), toast = $("toast");
+  var MAX = 250, valid = [], inTeams = false;
+  var T = window.microsoftTeams;
+
+  // ---- Teams integration ----
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : theme === "contrast" ? "contrast" : "light");
+  }
+  if (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) applyTheme("dark");
+
+  if (T && T.app) {
+    T.app.initialize().then(function () {
+      inTeams = true;
+      return T.app.getContext();
+    }).then(function (ctx) {
+      if (ctx && ctx.app && ctx.app.theme) applyTheme(ctx.app.theme);
+      T.app.registerOnThemeChangeHandler(applyTheme);
+      T.app.notifySuccess && T.app.notifySuccess();
+    }).catch(function () { inTeams = false; });
+  }
+
+  // ---- Settings memory (not the IDs) ----
+  try {
+    var saved = JSON.parse(localStorage.getItem("gcb-settings") || "{}");
+    if (saved.domain) domain.value = saved.domain;
+    if (typeof saved.upper === "boolean") upper.checked = saved.upper;
+  } catch (e) {}
+  function saveSettings() {
+    try { localStorage.setItem("gcb-settings", JSON.stringify({ domain: domain.value, upper: upper.checked })); } catch (e) {}
+  }
+
+  // ---- Parsing ----
+  function strip(v) { return v.trim().replace(/^["'<(]+|[>"')]+$/g, ""); }
+  function parse() {
+    var dom = domain.value.trim().replace(/^@/, "");
+    var seen = {}, out = [];
+    ids.value.split(/[\s,;]+/).map(strip).filter(Boolean).forEach(function (v) {
+      var email = v.indexOf("@") > -1 ? v : (upper.checked ? v.toUpperCase() : v) + "@" + dom;
+      var key = email.toLowerCase();
+      if (!/^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/.test(email)) out.push({ email: email, kind: "bad" });
+      else if (seen[key]) out.push({ email: email, kind: "dup" });
+      else { seen[key] = true; out.push({ email: email, kind: "ok" }); }
+    });
+    return out;
+  }
+
+  function deepLink(list) {
+    var url = "https://teams.microsoft.com/l/chat/0/0?users=" +
+      list.map(function (e) { return encodeURIComponent(e).replace(/%40/g, "@"); }).join(",");
+    if (topic.value.trim()) url += "&topicName=" + encodeURIComponent(topic.value.trim());
+    if (msg.value.trim()) url += "&message=" + encodeURIComponent(msg.value.trim());
+    return url;
+  }
+
+  // ---- Rendering ----
+  function render() {
+    var items = parse();
+    valid = items.filter(function (i) { return i.kind === "ok"; }).map(function (i) { return i.email; });
+    var dups = items.filter(function (i) { return i.kind === "dup"; }).length;
+    var bads = items.filter(function (i) { return i.kind === "bad"; }).length;
+
+    chips.textContent = "";
+    if (!items.length) {
+      var e = document.createElement("span"); e.className = "empty";
+      e.textContent = "Your recipients will appear here."; chips.appendChild(e);
+    }
+    items.forEach(function (it) {
+      var c = document.createElement("span");
+      c.className = "chip" + (it.kind === "ok" ? "" : " " + it.kind);
+      c.title = it.kind === "dup" ? "Duplicate, skipped" : it.kind === "bad" ? "Not a valid email, skipped" : it.email;
+      var t = document.createElement("span"); t.textContent = it.email; c.appendChild(t);
+      if (it.kind === "ok") {
+        var b = document.createElement("button"); b.type = "button";
+        b.setAttribute("aria-label", "Remove " + it.email); b.textContent = "×";
+        b.addEventListener("click", function () { removeEntry(it.email); });
+        c.appendChild(b);
+      }
+      chips.appendChild(c);
+    });
+
+    n.textContent = valid.length;
+    nlabel.textContent = valid.length === 1 ? "person to add" : "people to add";
+
+    var notes = [];
+    if (dups) notes.push(dups + (dups === 1 ? " duplicate" : " duplicates") + " skipped");
+    if (bads) notes.push(bads + (bads === 1 ? " invalid entry" : " invalid entries") + " skipped");
+    var ready = valid.length >= 2 && valid.length + 1 <= MAX;
+    status.className = "status";
+    if (!items.length) status.textContent = "Paste account IDs to start.";
+    else if (valid.length + 1 > MAX) { status.className = "status bad"; status.textContent = "Too many people: group chats hold up to " + MAX + " including you. Remove " + (valid.length + 1 - MAX) + "."; }
+    else if (valid.length < 2) { status.className = "status warn"; status.textContent = "A group chat needs at least 2 other people." + (notes.length ? " " + notes.join(", ") + "." : ""); }
+    else if (notes.length) { status.className = "status warn"; status.textContent = "Ready, with " + notes.join(" and ") + "."; }
+    else { status.className = "status ok"; status.textContent = "Ready. Check the count in Teams before you send."; }
+    startBtn.disabled = !ready;
+  }
+
+  function removeEntry(email) {
+    var key = email.toLowerCase(), dom = domain.value.trim().replace(/^@/, "").toLowerCase(), removed = false;
+    ids.value = ids.value.split(/(\r?\n|[,;]|\s+)/).filter(function (p) {
+      if (removed) return true;
+      var v = strip(p).toLowerCase();
+      if (!v) return true;
+      if ((v.indexOf("@") > -1 ? v : v + "@" + dom) === key) { removed = true; return false; }
+      return true;
+    }).join("").replace(/\n{2,}/g, "\n").trim();
+    render();
+  }
+
+  function flash(text, bad) {
+    toast.textContent = text; toast.className = "toast" + (bad ? " bad" : "");
+    clearTimeout(flash.t); flash.t = setTimeout(function () { toast.textContent = ""; }, 4000);
+  }
+
+  // ---- Start chat ----
+  startBtn.addEventListener("click", function () {
+    if (!valid.length) return;
+    var users = valid.slice(), url = deepLink(users);
+    var payload = { users: users };
+    if (topic.value.trim()) payload.topic = topic.value.trim();
+    if (msg.value.trim()) payload.message = msg.value.trim();
+
+    if (inTeams && T.chat && T.chat.isSupported && T.chat.isSupported()) {
+      T.chat.openGroupChat(payload).then(function () {
+        flash("Opened in Teams. Check the count, then press Send.");
+      }).catch(function () {
+        T.app.openLink(url).catch(function () { window.open(url, "_blank"); });
+      });
+    } else if (inTeams) {
+      T.app.openLink(url).then(function () { flash("Opened in Teams. Check the count, then press Send."); })
+        .catch(function () { window.open(url, "_blank"); });
+    } else {
+      window.open(url, "_blank", "noopener");
+      flash("Opened in a new tab.");
+    }
+  });
+
+  $("copyList").addEventListener("click", function () {
+    var text = valid.join("; ");
+    if (!text) { flash("Nothing to copy yet.", true); return; }
+    var done = function () { flash("Email list copied (" + valid.length + ")."); };
+    var fallback = function () {
+      var ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta);
+      ta.select(); var ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(ta);
+      ok ? done() : flash("Copy was blocked. Select the IDs and copy them manually.", true);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+    else fallback();
+  });
+
+  $("clear").addEventListener("click", function () { ids.value = ""; topic.value = ""; msg.value = ""; render(); ids.focus(); });
+
+  [ids, topic, msg].forEach(function (el) { el.addEventListener("input", render); });
+  domain.addEventListener("input", function () { saveSettings(); render(); });
+  upper.addEventListener("change", function () { saveSettings(); render(); });
+  render();
+})();
+</script>
+</body>
+</html>
